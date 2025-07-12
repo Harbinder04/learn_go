@@ -1,6 +1,6 @@
 package main
 
-import "github.com/harbinder04/go_learn/Zero/cmd"
+import "github.com/Harbinder04/learn_go/zero/cmd"
 
 func main() {
 	cmd.Execution()

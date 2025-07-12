@@ -1,4 +1,4 @@
-module github.com/yourusername/go_learn/Zero
+module github.com/Harbinder04/learn_go/zero
 
 go 1.24.3
 
