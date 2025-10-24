@@ -27,7 +27,7 @@ func Subtract(from string, subTract string) (result string) {
 		fmt.Println("Error: first value is invalid")
 		return
 	}
-	num2, err := strconv.ParseFloat(from, 64)
+	num2, err := strconv.ParseFloat(subTract, 64)
 	if err != nil {
 		fmt.Println("Error: second value is invalid")
 		return

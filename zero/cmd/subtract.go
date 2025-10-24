@@ -7,7 +7,7 @@ import (
 )
 
 var subCmd = &cobra.Command{
-	Use:     "add",
+	Use:     "subtract",
 	Aliases: []string{"substract"},
 	Short:   "Substract 2 numbers",
 	Long:    "Carry out substraction operation on 2 numbers",
