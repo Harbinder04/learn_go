@@ -41,7 +41,8 @@ func CreateJsonResponse(w http.ResponseWriter, statusCode int, reqId string, use
 }
 
 func CheckIsValid(name string, email string) error {
-	time.Sleep(2 * time.Second)
+	// Todo: remove this delay later
+	time.Sleep(5 * time.Second)
 	if len(name) < 2 {
 		return errors.New("Name must be greater than 2 characters")
 	}
