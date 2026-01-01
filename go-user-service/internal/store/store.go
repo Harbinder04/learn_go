@@ -1,13 +1,13 @@
 package internal
 
 import (
-	"sync"
+	"database/sql"
 	"fmt"
+	"log/slog"
 )
 
 type UserStore struct {
-	mu sync.RWMutex
-	users map[string]User
+	db *sql.DB
 }
 
 type User struct {
@@ -16,44 +16,53 @@ type User struct {
 	Email string `json:"email"`
 }
 
-func NewUserStore() *UserStore {
+func NewUserStore(db *sql.DB) *UserStore {
 	return &UserStore{
-		users: map[string]User{},
+		db: db,
 	}
 }
 
-func (us *UserStore) Create(user User) error {
-	us.mu.Lock()
-	defer us.mu.Unlock()
+func (us *UserStore) Create(user User) (string, error) {
+   _, err := us.db.Exec("INSERT INTO users (id, name, email) VALUES ($1, $2 , $3)", user.Id, user.Name, user.Email)
+   if err != nil {
+	return "", fmt.Errorf("Failed to insert: %w", err)
+   }
 
-	if _, exists := us.users[user.Id]; exists {
-		return fmt.Errorf("user with id %s already exists", user.Id)
-	}
-	
-	us.users[user.Id] = user
-	return nil
+   return  user.Id, nil
 }
 
 func (us *UserStore) GetByID(id string) (User, error) {
-	us.mu.RLock()
-	defer us.mu.RUnlock()
-
-    if userVal, ok := us.users[id]; ok {
-        return userVal, nil
-    }
-
-    return User{}, fmt.Errorf("user with id %s not found", id)
-}
-
-func (u *UserStore) GetAllUser() []User{
-	u.mu.RLock()
-	defer u.mu.RUnlock()
+	var u User
+	result := us.db.QueryRow("SELECT * FROM users WHERE id = $1", id)
 	
-	users := make([]User, 0, len(u.users))
-
-	for _,v := range u.users {
-		users = append(users, v)
+	if err := result.Scan(&u.Id, &u.Name, &u.Email); err != nil {
+        if err == sql.ErrNoRows {
+            return User{}, fmt.Errorf("userById %s: no such user", id)
+        }
+		return User{}, err
 	}
 
-	return users
+	return u, nil
+}
+
+func (us *UserStore) GetAllUser() ([]User, error){
+	
+	var users []User
+	result, err := us.db.Query("SELECT * FROM users"); if err != nil {
+		return nil, fmt.Errorf("Unable to fetch record")
+	}
+	defer result.Close()
+
+	for result.Next() {
+		var user User
+		if err := result.Scan(&user.Id, &user.Name, &user.Email); err != nil {
+			slog.Info("Unable to scan a row")
+		}
+		users = append(users, user)
+	}
+	if err := result.Err(); err != nil {
+        return nil, fmt.Errorf("Error: %v", err)
+    }
+
+	return users, nil
 }
