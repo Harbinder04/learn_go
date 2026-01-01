@@ -14,27 +14,45 @@ import (
 	logger "go-user-service/internal/logger"
 	customMiddleware "go-user-service/internal/middleware"
 	store "go-user-service/internal/store"
+	"go-user-service/internal/db"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/joho/godotenv"
 )
 	
+type Config struct {
+	port string
+	env string
+	db string
+}
+
 
 func main() {
 	godotenv.Load("../../.env.dev")
+	cfg := &Config{
+		port: os.Getenv("PORT"),
+		env: os.Getenv("ENV"),
+		db: os.Getenv("DB_URL"),
+	}
+	port := cfg.port
+	env := cfg.env
+	logger := logger.NewLogger(env)
 
-	port := os.Getenv("PORT")
-	env := os.Getenv("ENV")
+	db := db.NewdbConnection(cfg.db)
 
+	if cfg.db == "" {
+		logger.Error("Database URL not provided")
+		os.Exit(1)
+	}
+	
 	r := chi.NewRouter()
 	server := &http.Server{
 		Addr : ":"+ port,
 		Handler: r,
 	}
 
-	st := store.NewUserStore()
-	logger := logger.NewLogger(env)
+	st := store.NewUserStore(db)
 	handler := handlers.NewUserHandler(st, logger)
 	
 	r.Use(middleware.RequestID)
@@ -58,9 +76,15 @@ func main() {
 	})
 
 	// start the server
-	go server.ListenAndServe()
+	go func() {
+       if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+           logger.Error("Server failed: " + err.Error())
+       }
+   }()
+
 	shutDownCtx := make(chan struct{})
 
+	// for handling gracefull shutdown.
 	go func() {
         sigChan := make(chan os.Signal, 1)
         signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -74,7 +98,10 @@ func main() {
         if err := server.Shutdown(shutdownCtx); err != nil {
             logger.Error("Server shutdown error: " + err.Error())
         }
+		logger.Info("Closing database connection")
+   		db.Close()
         logger.Info("Server stopped gracefully")
+
 		close(shutDownCtx)
     }()
 

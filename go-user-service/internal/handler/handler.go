@@ -9,7 +9,6 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -42,7 +41,7 @@ func CreateJsonResponse(w http.ResponseWriter, statusCode int, reqId string, use
 
 func CheckIsValid(name string, email string) error {
 	// Todo: remove this delay later
-	time.Sleep(5 * time.Second)
+	// time.Sleep(5 * time.Second)
 	if len(name) < 2 {
 		return errors.New("Name must be greater than 2 characters")
 	}
@@ -72,14 +71,16 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	prefix := "abcd"
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
-	if err := h.store.Create(internal.User{Id: id, Name: nu.Name, Email: nu.Email}); err != nil {
+	resId, err := h.store.Create(internal.User{Id: id, Name: nu.Name, Email: nu.Email})
+	if err != nil {
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": id, "request_id": reqId})
+	// Todo; How to convert int64 to string i.e. resId
+	json.NewEncoder(w).Encode(map[string]string{"id": resId, "request_id": reqId})
 	h.logger.Info("user created", "id", id)
 
 }
@@ -91,7 +92,10 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allUsers := h.store.GetAllUser()
+	allUsers, err := h.store.GetAllUser()
+	if err != nil {
+		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
+	}
 
 	CreateJsonResponse(w, http.StatusOK, reqId, allUsers)
 }
