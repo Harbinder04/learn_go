@@ -1,6 +1,7 @@
 package Internal
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	models "go-user-service/internal/models"
@@ -9,16 +10,17 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type UserHandler struct {
-	store  *internal.UserStore
+	store  internal.UserStore
 	logger *slog.Logger
 }
 
-func NewUserHandler(st *internal.UserStore, lg *slog.Logger) *UserHandler {
+func NewUserHandler(st internal.UserStore, lg *slog.Logger) *UserHandler {
 	return &UserHandler{
 		store:  st,
 		logger: lg,
@@ -53,33 +55,63 @@ func CheckIsValid(name string, email string) error {
 }
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
-	reqId := middleware.GetReqID(r.Context())
+	ctx := r.Context()
+	reqId := middleware.GetReqID(ctx)
 
-	var nu internal.User
-	err := json.NewDecoder(r.Body).Decode(&nu)
+	var newUsr internal.User
+	err := json.NewDecoder(r.Body).Decode(&newUsr)
 	if err != nil {
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
 
-	Validationerr := CheckIsValid(nu.Name, nu.Email)
+	Validationerr := CheckIsValid(newUsr.Name, newUsr.Email)
 	if Validationerr != nil {
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, Validationerr.Error())
+		return
+	}
+
+	exists, err := h.store.UserExists(ctx, newUsr.Email)
+	if err != nil {
+		if ctx.Err() == context.Canceled {
+			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
+			return
+		}
+		CreateJsonError(w, http.StatusInternalServerError, reqId, h.logger, "Failed to check user existence")
+		return
+	}
+	if exists {
+		CreateJsonError(w, http.StatusConflict, reqId, h.logger, "User with this email already exists")
 		return
 	}
 
 	prefix := "abcd"
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
-	resId, err := h.store.Create(internal.User{Id: id, Name: nu.Name, Email: nu.Email})
+	//⚠️Remove this delay
+	time.Sleep(5 * time.Second)
+
+	resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email})
 	if err != nil {
+
+		// ⚠️Working but not idomatic way like the driver can return error in some another form or by wrapping it
+		// if errors.Is(err, context.Canceled) {
+		// 	h.logger.Info("Request cancelled during user creation 1", "request_id", reqId)
+		// 	return
+		// }
+
+		// ✅directly checking context for cancellation
+		if ctx.Err() == context.Canceled {
+			h.logger.Info("Request cancelled during user creation 2", "request_id", reqId)
+			return
+		}
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	// Todo; How to convert int64 to string i.e. resId
+
 	json.NewEncoder(w).Encode(map[string]string{"id": resId, "request_id": reqId})
 	h.logger.Info("user created", "id", id)
 
