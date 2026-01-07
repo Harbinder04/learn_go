@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"time"
 )
 
 type UserStore interface {
-	UserExists(ctx context.Context, email string) (bool, error)
-	Create(ctx context.Context, u User) (string, error)
-	GetByID(id string) (User, error)
-	GetAllUser() ([]User, error)
+	UserExists(ctx context.Context, email string, logger *slog.Logger) (bool, error)
+	Create(ctx context.Context, u User, logger *slog.Logger) (string, error)
+	GetByID(ctx context.Context, id string, logger *slog.Logger) (User, error)
+	GetAllUser(ctx context.Context, logger *slog.Logger) ([]User, error)
 }
 
 type SQLUserStore struct {
@@ -30,10 +31,14 @@ func NewSQLUserStore(db *sql.DB) UserStore {
 }
 
 // store.go
-func (us *SQLUserStore) UserExists(ctx context.Context, email string) (bool, error) {
+func (us *SQLUserStore) UserExists(ctx context.Context, email string, logger *slog.Logger) (bool, error) {
 	var exists bool
 	query := "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)"
+	timeStart := time.Now()
 	err := us.db.QueryRowContext(ctx, query, email).Scan(&exists)
+	if time.Since(timeStart) > 3 * time.Millisecond {
+		logger.Info("DB query takes more than 300ms")
+	}
 	if err != nil {
 		return false, err
 	}
@@ -41,8 +46,9 @@ func (us *SQLUserStore) UserExists(ctx context.Context, email string) (bool, err
 }
 
 // refactored to show demo transaction logic 
-func (us *SQLUserStore) Create(ctx context.Context, user User) (string, error) {
+func (us *SQLUserStore) Create(ctx context.Context, user User, logger *slog.Logger) (string, error) {
 	// ctx := context.TODO()
+	timeStart := time.Now()
 	tx, err := us.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", err
@@ -53,7 +59,6 @@ func (us *SQLUserStore) Create(ctx context.Context, user User) (string, error) {
 			tx.Rollback()
 		}
 	}()
-
 
    _, err = tx.ExecContext(ctx, "INSERT INTO users (id, name, email) VALUES ($1, $2 , $3)", user.Id, user.Name, user.Email)
    if err != nil {
@@ -71,14 +76,25 @@ func (us *SQLUserStore) Create(ctx context.Context, user User) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
+	if time.Since(timeStart) > 3 * time.Millisecond {
+		logger.Info("DB query takes more than 300ms")
+	}
+
    return  user.Id, nil
 }
 
-func (us *SQLUserStore) GetByID(id string) (User, error) {
+func (us *SQLUserStore) GetByID(ctx context.Context, id string, logger *slog.Logger) (User, error) {
 	var u User
-	result := us.db.QueryRow("SELECT * FROM users WHERE id = $1", id)
-	
+	timeStart := time.Now()
+	result, err := us.db.QueryContext(ctx, "SELECT * FROM users WHERE id = $1", id)
+	if time.Since(timeStart) > 3 * time.Millisecond {
+		logger.Info("DB query takes more than 300ms")
+	}
+	if err != nil {
+		return  User{}, err
+	}
+
 	if err := result.Scan(&u.Id, &u.Name, &u.Email); err != nil {
         if err == sql.ErrNoRows {
             return User{}, fmt.Errorf("userById %s: no such user", id)
@@ -89,10 +105,20 @@ func (us *SQLUserStore) GetByID(id string) (User, error) {
 	return u, nil
 }
 
-func (us *SQLUserStore) GetAllUser() ([]User, error){
+func (us *SQLUserStore) GetAllUser(ctx context.Context, logger *slog.Logger) ([]User, error){
 	
 	var users []User
-	result, err := us.db.Query("SELECT * FROM users"); if err != nil {
+
+	timeStart := time.Now()
+	result, err := us.db.QueryContext(ctx, "SELECT * FROM users"); 
+	if time.Since(timeStart) > 3 * time.Millisecond {
+		logger.Info("DB query takes more than 300ms")
+	}
+
+	if err != nil {
+		if err == context.DeadlineExceeded {
+			return nil, err
+		}
 		return nil, fmt.Errorf("Unable to fetch record")
 	}
 	defer result.Close()
@@ -100,7 +126,7 @@ func (us *SQLUserStore) GetAllUser() ([]User, error){
 	for result.Next() {
 		var user User
 		if err := result.Scan(&user.Id, &user.Name, &user.Email); err != nil {
-			slog.Info("Unable to scan a row")
+			logger.Info("Unable to scan a row")
 		}
 		users = append(users, user)
 	}

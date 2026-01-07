@@ -52,6 +52,10 @@ func main() {
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,
+		ReadTimeout: 5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout: 30 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	st := store.NewSQLUserStore(db)
@@ -60,6 +64,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 
+	// attaches logger to the request
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), "logger", logger)
@@ -67,7 +72,7 @@ func main() {
 		})
 	})
 
-	r.With(customMiddleware.CheckResTime).Route("/users", func(r chi.Router) {
+	r.With(customMiddleware.CheckResTime, customMiddleware.CheckTimeOut).Route("/users", func(r chi.Router) {
 		r.Post("/", handler.CreateUser)
 		r.Get("/", handler.GetAllUsers)
 		r.Get("/{id}", handler.GetUserbyId)

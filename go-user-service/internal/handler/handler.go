@@ -56,6 +56,9 @@ func CheckIsValid(name string, email string) error {
 
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	// fmt.Print(r.Context())
+
 	reqId := middleware.GetReqID(ctx)
 
 	var newUsr internal.User
@@ -71,7 +74,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := h.store.UserExists(ctx, newUsr.Email)
+	exists, err := h.store.UserExists(ctx, newUsr.Email, h.logger)
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
@@ -88,23 +91,30 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	prefix := "abcd"
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
-	//⚠️Remove this delay
+	//⚠️todo: Remove this delay
 	time.Sleep(5 * time.Second)
 
-	resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email})
+	resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email}, h.logger)
 	if err != nil {
 
 		// ⚠️Working but not idomatic way like the driver can return error in some another form or by wrapping it
 		// if errors.Is(err, context.Canceled) {
-		// 	h.logger.Info("Request cancelled during user creation 1", "request_id", reqId)
+		// 	h.logger.Info("Request cancelled during user creation", "request_id", reqId)
 		// 	return
 		// }
 
 		// ✅directly checking context for cancellation
 		if ctx.Err() == context.Canceled {
-			h.logger.Info("Request cancelled during user creation 2", "request_id", reqId)
+			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
 			return
 		}
+		
+		if ctx.Err() == context.DeadlineExceeded {
+			h.logger.Info("Request Timeout", "request_id", reqId)
+			CreateJsonError(w, http.StatusGatewayTimeout, reqId, h.logger, "Request Timeout")
+			return
+		}
+
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
@@ -118,21 +128,35 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	reqId := middleware.GetReqID(r.Context())
 	if r.Method != http.MethodGet {
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, "Method must be GET")
 		return
 	}
 
-	allUsers, err := h.store.GetAllUser()
+	allUsers, err := h.store.GetAllUser(ctx, h.logger)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			h.logger.Info("Request Timeout", "request_id", reqId)
+			CreateJsonError(w, http.StatusGatewayTimeout, reqId, h.logger, "Request Timeout")
+			return
+		}
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 	}
 
+	if ctx.Err() == context.DeadlineExceeded {
+		h.logger.Info("Request Timeout", "request_id", reqId)
+		CreateJsonError(w, http.StatusGatewayTimeout, reqId, h.logger, "Request Timeout")
+		return
+	}
 	CreateJsonResponse(w, http.StatusOK, reqId, allUsers)
 }
 
 func (h *UserHandler) GetUserbyId(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	reqId := middleware.GetReqID(r.Context())
 	w.Header().Set("Content-type", "application/json")
 	if r.Method != http.MethodGet {
@@ -142,8 +166,13 @@ func (h *UserHandler) GetUserbyId(w http.ResponseWriter, r *http.Request) {
 
 	id := r.PathValue("id")
 
-	u, err := h.store.GetByID(id)
+	u, err := h.store.GetByID(ctx, id, h.logger)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			h.logger.Info("Request Timeout", "request_id", reqId)
+			CreateJsonError(w, http.StatusGatewayTimeout, reqId, h.logger, "Request Timeout")
+			return
+		}
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
