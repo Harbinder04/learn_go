@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"go-user-service/internal/db"
+	dbConfig "go-user-service/internal/db"
 	handlers "go-user-service/internal/handler"
 	logger "go-user-service/internal/logger"
 	customMiddleware "go-user-service/internal/middleware"
@@ -36,16 +36,22 @@ func main() {
 	}
 	port := cfg.port
 	env := cfg.env
-	logger := logger.NewLogger(env)
 
-	db, err := db.NewdbConnection(logger, cfg.db)
-	if err != nil {
-		log.Fatal(err)
-	}
+	logger := logger.NewLogger(env)
 
 	if cfg.db == "" {
 		logger.Error("Database URL not provided")
 		os.Exit(1)
+	}
+
+	db, err := dbConfig.NewdbConnection(logger, cfg.db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	migrationErr := dbConfig.ApplyMigrations(cfg.db)
+	if migrationErr != nil {
+		logger.Error("Migration not applied")
 	}
 
 	r := chi.NewRouter()

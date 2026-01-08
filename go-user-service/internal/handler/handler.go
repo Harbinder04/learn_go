@@ -10,7 +10,6 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -92,7 +91,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
 	//⚠️todo: Remove this delay
-	time.Sleep(5 * time.Second)
+	// time.Sleep(5 * time.Second)
 
 	resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email}, h.logger)
 	if err != nil {

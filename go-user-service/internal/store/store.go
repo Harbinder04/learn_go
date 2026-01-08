@@ -49,36 +49,40 @@ func (us *SQLUserStore) UserExists(ctx context.Context, email string, logger *sl
 func (us *SQLUserStore) Create(ctx context.Context, user User, logger *slog.Logger) (string, error) {
 	// ctx := context.TODO()
 	timeStart := time.Now()
-	tx, err := us.db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
+	// tx, err := us.db.BeginTx(ctx, nil)
+	// if err != nil {
+	// 	return "", err
+	// }
 	
-	defer func(){
-		if err != nil {
-			tx.Rollback()
-		}
-	}()
+	// defer func(){
+	// 	if err != nil {
+	// 		tx.Rollback()
+	// 	}
+	// }()
 
-   _, err = tx.ExecContext(ctx, "INSERT INTO users (id, name, email) VALUES ($1, $2 , $3)", user.Id, user.Name, user.Email)
-   if err != nil {
-	return "", err
-   }
+//    _, err = tx.ExecContext(ctx, "INSERT INTO users (id, name, email) VALUES ($1, $2 , $3)", user.Id, user.Name, user.Email)
+//    if err != nil {
+// 	return "", err
+//    }
 
    // todo: Remove later (Pretending)
-   _, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (action) VALUES ($1)",
-    "USER_CREATED")
-	if err != nil {
-		return  "", err
-	}
+//    _, err = tx.ExecContext(ctx, "INSERT INTO audit_logs (action) VALUES ($1)",
+//     "USER_CREATED")
+// 	if err != nil {
+// 		return  "", err
+// 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return "", err
-	}
+// 	err = tx.Commit()
+// 	if err != nil {
+// 		return "", err
+// 	}
 
+	_, err := us.db.ExecContext(ctx, "Insert into users (id, name, email) Values ($1, $2, $3)", user.Id, user.Name, user.Email)
 	if time.Since(timeStart) > 3 * time.Millisecond {
 		logger.Info("DB query takes more than 300ms")
+	}
+	if err != nil {
+		return "", err
 	}
 
    return  user.Id, nil
