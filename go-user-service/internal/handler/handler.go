@@ -10,16 +10,17 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type UserHandler struct {
-	store  internal.UserStore
+	store  internal.UserRepository
 	logger *slog.Logger
 }
 
-func NewUserHandler(st internal.UserStore, lg *slog.Logger) *UserHandler {
+func NewUserHandler(st internal.UserRepository, lg *slog.Logger) *UserHandler {
 	return &UserHandler{
 		store:  st,
 		logger: lg,
@@ -73,7 +74,10 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := h.store.UserExists(ctx, newUsr.Email, h.logger)
+	dur, exists, err := h.store.UserExists(ctx, newUsr.Email)
+	if dur > 3*time.Millisecond {
+		h.logger.Info("DB query takes more than 300ms")
+	}
 	if err != nil {
 		if ctx.Err() == context.Canceled {
 			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
@@ -93,7 +97,10 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	//⚠️todo: Remove this delay
 	// time.Sleep(5 * time.Second)
 
-	resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email}, h.logger)
+	dur, resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email})
+	if dur > 3*time.Millisecond {
+		h.logger.Info("DB query takes more than 300ms")
+	}
 	if err != nil {
 
 		// ⚠️Working but not idomatic way like the driver can return error in some another form or by wrapping it
@@ -107,7 +114,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
 			return
 		}
-		
+
 		if ctx.Err() == context.DeadlineExceeded {
 			h.logger.Info("Request Timeout", "request_id", reqId)
 			CreateJsonError(w, http.StatusGatewayTimeout, reqId, h.logger, "Request Timeout")
@@ -135,7 +142,11 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allUsers, err := h.store.GetAllUser(ctx, h.logger)
+	dur, allUsers, err := h.store.GetAllUser(ctx)
+	if dur > 3*time.Millisecond {
+		h.logger.Info("DB query takes more than 300ms")
+	}
+
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			h.logger.Info("Request Timeout", "request_id", reqId)
@@ -165,7 +176,10 @@ func (h *UserHandler) GetUserbyId(w http.ResponseWriter, r *http.Request) {
 
 	id := r.PathValue("id")
 
-	u, err := h.store.GetByID(ctx, id, h.logger)
+	dur, u, err := h.store.GetByID(ctx, id)
+	if dur > 3*time.Millisecond {
+		h.logger.Info("DB query takes more than 300ms")
+	}
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			h.logger.Info("Request Timeout", "request_id", reqId)

@@ -49,11 +49,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	migrationErr := dbConfig.ApplyMigrations(cfg.db)
-	if migrationErr != nil {
-		logger.Error("Migration not applied")
-	}
-
 	r := chi.NewRouter()
 	server := &http.Server{
 		Addr:    ":" + port,
