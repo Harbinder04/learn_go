@@ -14,18 +14,14 @@ import (
 )
 
 
-func RunUpMigrations(db string) error {
+func RunUpMigrations(db *sql.DB) error {
 	_, b, _, _ := runtime.Caller(0)
 	basePath := filepath.Join(filepath.Dir(b), "../../../migrations")
 	migrationDir := filepath.Join("file://" + basePath)
 
-	dbConfig, err := sql.Open("postgres", db)
-	if err != nil {
-		return err
-	}
-	defer dbConfig.Close()
+	defer db.Close()
 
-	driver, err := postgres.WithInstance(dbConfig, &postgres.Config{})
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return err
 	}
@@ -57,18 +53,14 @@ func RunUpMigrations(db string) error {
 }
 
 
-func RunDownMigrations(db string) error {
+func RunDownMigrations(db *sql.DB) error {
 	_, b, _, _ := runtime.Caller(0)
 	basePath := filepath.Join(filepath.Dir(b), "../../../migrations")
 	migrationDir := filepath.Join("file://" + basePath)
 
-	dbConfig, err := sql.Open("postgres", db)
-	if err != nil {
-		return err
-	}
-	defer dbConfig.Close()
+	defer db.Close()
 
-	driver, err := postgres.WithInstance(dbConfig, &postgres.Config{})
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return err
 	}
@@ -96,18 +88,14 @@ func RunDownMigrations(db string) error {
 	return nil
 }
 
-func DropEverythingInDatabase(db string) error {
+func DropEverythingInDatabase(db *sql.DB) error {
 	_, b, _, _ := runtime.Caller(0)
 	basePath := filepath.Join(filepath.Dir(b), "../../../migrations")
 	migrationDir := filepath.Join("file://" + basePath)
 
-	dbConfig, err := sql.Open("postgres", db)
-	if err != nil {
-		return err
-	}
-	defer dbConfig.Close()
+	defer db.Close()
 	
-	driver, err := postgres.WithInstance(dbConfig, &postgres.Config{})
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return err
 	}

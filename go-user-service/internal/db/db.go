@@ -2,14 +2,16 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
-func NewdbConnection(logger *slog.Logger, url string) (sq *sql.DB, err error) {
-	dbCon, err := sql.Open("postgres", url)
+func NewdbConnection(logger *slog.Logger, dns string) (sq *sql.DB, err error) {
+	fmt.Print(dns)
+	dbCon, err := sql.Open("postgres", dns)
 	if err != nil {
 		return nil, err
 	}
@@ -40,16 +42,16 @@ func NewdbConnection(logger *slog.Logger, url string) (sq *sql.DB, err error) {
 	return dbCon, nil
 }
 
-func NewTestdbConnection(url string) (sq *sql.DB, err error) {
-	dbCon, err := sql.Open("postgres", url)
-	if err != nil {
-		return nil, err
-	}
+// func NewTestdbConnection(url string) (sq *sql.DB, err error) {
+// 	dbCon, err := sql.Open("postgres", url)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	err = dbCon.Ping()
-	if err != nil {
-		return nil, err
-	}
+// 	err = dbCon.Ping()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	return dbCon, nil
-}
+// 	return dbCon, nil
+// }

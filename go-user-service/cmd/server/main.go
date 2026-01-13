@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"go-user-service/config"
 	dbConfig "go-user-service/internal/db"
 	handlers "go-user-service/internal/handler"
 	logger "go-user-service/internal/logger"
@@ -18,33 +19,18 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/joho/godotenv"
 )
 
-type Config struct {
-	port string
-	env  string
-	db   string
-}
 
 func main() {
-	godotenv.Load("../../.env.dev")
-	cfg := &Config{
-		port: os.Getenv("PORT"),
-		env:  os.Getenv("ENV"),
-		db:   os.Getenv("DB_URL"),
-	}
-	port := cfg.port
-	env := cfg.env
+	cfg := config.NewConfig()
+
+	port := cfg.ServerConfig.Port
+	env := cfg.ServerConfig.Env
 
 	logger := logger.NewLogger(env)
 
-	if cfg.db == "" {
-		logger.Error("Database URL not provided")
-		os.Exit(1)
-	}
-
-	db, err := dbConfig.NewdbConnection(logger, cfg.db)
+	db, err := dbConfig.NewdbConnection(logger, cfg.DatabaseConfig.GetConnectionString())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -53,10 +39,10 @@ func main() {
 	server := &http.Server{
 		Addr:    ":" + port,
 		Handler: r,
-		ReadTimeout: 5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout: 30 * time.Second,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout: cfg.ServerConfig.ReadTimeout,
+		WriteTimeout: cfg.ServerConfig.WriteTimeout,
+		IdleTimeout: cfg.ServerConfig.IdleTimeout,
+		ReadHeaderTimeout: cfg.ServerConfig.ReadHeaderTimeout,
 	}
 
 	st := store.NewSQLUserStore(db)

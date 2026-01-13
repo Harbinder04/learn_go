@@ -2,36 +2,29 @@ package psql_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
-	"go-user-service/internal/db"
+	"go-user-service/config"
 	internal "go-user-service/internal/store"
 	psql "go-user-service/internal/store/postgres"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/joho/godotenv"
 )
 
 func TestUserRepository_CreateAndGet(t *testing.T) {
-	godotenv.Load("../../../.env.dev")
+	cfg := config.NewConfig()
 
-	dbstr := os.Getenv("TEST_DB_URL")
-
-	if dbstr == "" {
-		t.Fatal("No database url provided")
-	}
-
-	dbPool, err := db.NewTestdbConnection(dbstr)
+	db, err := sql.Open("postgres", cfg.DatabaseConfig.GetConnectionString())
 
 	if err != nil {
 		t.Error(err)
 	}
-	storage := internal.NewSQLUserStore(dbPool)
+	storage := internal.NewSQLUserStore(db)
 
-	err = psql.RunUpMigrations(dbstr)
+	err = psql.RunUpMigrations(db)
 	if err != nil {
 		t.Errorf("Test setup failed for: CreateUser, with err: %v", err)
 	}
@@ -52,16 +45,9 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 			return
 		}
 
-		con, err := db.NewTestdbConnection(dbstr)
-		if err != nil {
-			t.Errorf("failed to connect to database with err: %v", err)
-			return
-		}
-		defer con.Close()
-
 		var queryResult internal.User
 
-		err = con.QueryRow("Select id, name, email From users Where email=$1", "harbinder621@gmail.com").Scan(&queryResult.Id, &queryResult.Name, &queryResult.Email)
+		err = db.QueryRow("Select id, name, email From users Where email=$1", "harbinder621@gmail.com").Scan(&queryResult.Id, &queryResult.Name, &queryResult.Email)
 
 		if err != nil {
 			t.Errorf("This was query err: %v", err)
@@ -87,7 +73,7 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 	})
 
 	t.Cleanup(func(){
-		err := psql.RunDownMigrations(dbstr)
+		err := psql.RunDownMigrations(db)
 		if err != nil {
 			if errors.Is(err, migrate.ErrNoChange) {
 				return

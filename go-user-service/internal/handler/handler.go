@@ -75,7 +75,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dur, exists, err := h.store.UserExists(ctx, newUsr.Email)
-	if dur > 3*time.Millisecond {
+	if dur > 3 * time.Second {
 		h.logger.Info("DB query takes more than 300ms")
 	}
 	if err != nil {
@@ -83,6 +83,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 			h.logger.Info("Request cancelled during user creation", "request_id", reqId)
 			return
 		}
+		h.logger.Error(err.Error())
 		CreateJsonError(w, http.StatusInternalServerError, reqId, h.logger, "Failed to check user existence")
 		return
 	}

@@ -1,25 +1,19 @@
 package psql_test
 
 import (
-	"log"
+	"database/sql"
 	"os"
 	"testing"
 
+	"go-user-service/config"
 	psql "go-user-service/internal/store/postgres"
-
-	"github.com/joho/godotenv"
 )
 
 func TestMain(m *testing.M) {
-	godotenv.Load("../../../.env.dev")
+	cfg := config.NewConfig()
 
-	dbstr := os.Getenv("TEST_DB_URL")
-
-	if dbstr == "" {
-		log.Fatal("No database url provided")
-	}
-
-	err := psql.DropEverythingInDatabase(dbstr)
+	db, err := sql.Open("postgres", cfg.DatabaseConfig.GetConnectionString())
+	err = psql.DropEverythingInDatabase(db)
 	if err != nil {
 		panic(err)
 	}
