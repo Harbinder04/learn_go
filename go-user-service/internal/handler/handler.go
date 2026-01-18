@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"go-user-service/internal/jobs"
 	models "go-user-service/internal/models"
 	internal "go-user-service/internal/store"
 	"log/slog"
@@ -18,12 +19,14 @@ import (
 type UserHandler struct {
 	store  internal.UserRepository
 	logger *slog.Logger
+	jobQueue chan jobs.Job
 }
 
-func NewUserHandler(st internal.UserRepository, lg *slog.Logger) *UserHandler {
+func NewUserHandler(st internal.UserRepository, lg *slog.Logger, jobQueue chan jobs.Job) *UserHandler {
 	return &UserHandler{
 		store:  st,
 		logger: lg,
+		jobQueue: jobQueue,
 	}
 }
 
@@ -95,16 +98,13 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	prefix := "abcd"
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
-	//⚠️todo: Remove this delay
-	// time.Sleep(5 * time.Second)
-
 	dur, resId, err := h.store.Create(ctx, internal.User{Id: id, Name: newUsr.Name, Email: newUsr.Email})
 	if dur > 3*time.Millisecond {
 		h.logger.Info("DB query takes more than 300ms")
 	}
 	if err != nil {
 
-		// ⚠️Working but not idomatic way like the driver can return error in some another form or by wrapping it
+		//🧠 Working but not idomatic way like the driver can return error in some another form or by wrapping it
 		// if errors.Is(err, context.Canceled) {
 		// 	h.logger.Info("Request cancelled during user creation", "request_id", reqId)
 		// 	return
@@ -125,6 +125,16 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		CreateJsonError(w, http.StatusBadRequest, reqId, h.logger, err.Error())
 		return
 	}
+
+	emailJob := jobs.NewemailJob(newUsr.Email)
+
+	select {
+	case h.jobQueue <- emailJob:
+		h.logger.Info("Welcome email queued", "email", newUsr.Email)
+	default:
+		h.logger.Warn("Job queue full, email not sent", "email", newUsr.Email)
+	}
+
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)

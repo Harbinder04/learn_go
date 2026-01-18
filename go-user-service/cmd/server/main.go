@@ -13,9 +13,11 @@ import (
 	"go-user-service/config"
 	dbConfig "go-user-service/internal/db"
 	handlers "go-user-service/internal/handler"
+	"go-user-service/internal/jobs"
 	logger "go-user-service/internal/logger"
 	customMiddleware "go-user-service/internal/middleware"
 	store "go-user-service/internal/store"
+	"go-user-service/internal/workers"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -46,7 +48,14 @@ func main() {
 	}
 
 	st := store.NewSQLUserStore(db)
-	handler := handlers.NewUserHandler(st, logger)
+
+	// create a worker porcesses
+	jobQueue := make(chan jobs.Job, 100)
+
+	worker := workers.NewWorker(jobQueue, logger)
+	go worker.Start()
+
+	handler := handlers.NewUserHandler(st, logger, jobQueue)
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -76,6 +85,7 @@ func main() {
 		}
 	}()
 
+	// need to make this channel with empty interface to ensure that the server just don't stop imediatly after starting server.
 	shutDownCtx := make(chan struct{})
 
 	// for handling gracefull shutdown.
@@ -92,14 +102,24 @@ func main() {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("Server shutdown error: " + err.Error())
 		}
+
+		logger.Info("Closing job Queue...")
+		close(jobQueue)
+
+		// done all worker jobs
+		logger.Info("Waithing for workers to done there work")
+		worker.Shutdown()
+
 		logger.Info("Closing database connection")
 		db.Close()
+
 		logger.Info("Server stopped gracefully")
 
 		close(shutDownCtx)
 	}()
 
 	log.Println("Server started on 8080")
+	// listning to shudown context
 	<-shutDownCtx
 
 }

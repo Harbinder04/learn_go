@@ -22,6 +22,7 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+
 	storage := internal.NewSQLUserStore(db)
 
 	err = psql.RunUpMigrations(db)
@@ -31,14 +32,15 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 
 	t.Run("Should create a new User", func(t *testing.T) {
 		newUser := internal.User{
-			Id: "B23",
-			Name: "Harbinder",
+			Id:    "B23",
+			Name:  "Harbinder",
 			Email: "harbinder621@gmail.com",
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, _, err := storage.Create(ctx, newUser)
+		_, _, err = storage.Create(ctx, newUser)
 
 		if err != nil {
 			t.Errorf("Failed to create new user with err: %v", err)
@@ -47,16 +49,15 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 
 		var queryResult internal.User
 
-		err = db.QueryRow("Select id, name, email From users Where email=$1", "harbinder621@gmail.com").Scan(&queryResult.Id, &queryResult.Name, &queryResult.Email)
+		err = db.QueryRowContext(ctx, "Select id, name, email From users Where email=$1", "harbinder621@gmail.com").Scan(&queryResult.Id, &queryResult.Name, &queryResult.Email)
 
 		if err != nil {
 			t.Errorf("This was query err: %v", err)
 			return
 		}
 
-			if queryResult.Name != newUser.Name {
-			t.Error(`failed 'should create a new user' wanted name did not match 
-				returned value`)
+		if queryResult.Name != newUser.Name {
+			t.Error(`failed 'should create a new user' wanted name did not match returned value`)
 			return
 		}
 		if queryResult.Email != newUser.Email {
@@ -72,7 +73,7 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 		}
 	})
 
-	t.Cleanup(func(){
+	t.Cleanup(func() {
 		err := psql.RunDownMigrations(db)
 		if err != nil {
 			if errors.Is(err, migrate.ErrNoChange) {
@@ -80,5 +81,6 @@ func TestUserRepository_CreateAndGet(t *testing.T) {
 			}
 			t.Errorf("test cleanup failed for: CreateUser, with err: %v", err)
 		}
+
 	})
 }

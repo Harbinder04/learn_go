@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type UserRepository interface {
@@ -42,7 +44,7 @@ func (us *SQLUserStore) UserExists(ctx context.Context, email string) (time.Dura
 	return dur, exists, nil
 }
 
-// refactored to show demo transaction logic
+// ⚠️Todo: Remove tx 
 func (us *SQLUserStore) Create(ctx context.Context, user User) (time.Duration, string, error) {
 	// ctx := context.TODO()
 	timeStart := time.Now()
@@ -74,9 +76,13 @@ func (us *SQLUserStore) Create(ctx context.Context, user User) (time.Duration, s
 	// 		return "", err
 	// 	}
 
+	//🔨 us.db is replaced with tx here temporarily
 	_, err := us.db.ExecContext(ctx, "Insert into users (id, name, email) Values ($1, $2, $3)", user.Id, user.Name, user.Email)
 	dur := time.Since(timeStart)
 	if err != nil {
+		if err, ok := err.(*pq.Error); ok {
+			fmt.Println("Message:", err.Message)
+		}
 		return dur, "", err
 	}
 

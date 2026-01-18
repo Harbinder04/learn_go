@@ -33,9 +33,10 @@ type serverConfig struct {
 }
 
 func NewConfig() *Config {
-	godotenv.Load("../../.env.dev")
+	godotenv.Load("../../../.env.dev")
 	env := os.Getenv("ENV")
 
+	fmt.Print(env)
 	if env == "" {
 		panic(errors.New("env not provided"))
 	}

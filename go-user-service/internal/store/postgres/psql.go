@@ -13,19 +13,18 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-
 func RunUpMigrations(db *sql.DB) error {
 	_, b, _, _ := runtime.Caller(0)
 	basePath := filepath.Join(filepath.Dir(b), "../../../migrations")
 	migrationDir := filepath.Join("file://" + basePath)
 
-	defer db.Close()
-
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return err
 	}
-	defer driver.Close()
+
+	//⚠️ don't close database connection as using same connection in whole test suit.
+	// defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
 		migrationDir, "postgres",
@@ -44,14 +43,11 @@ func RunUpMigrations(db *sql.DB) error {
 		}
 	}
 
-	m.Close()
-	// // scheme version
-	// scheme_version, _, _ := m.Version()
-	// log.Printf("Scheme version is :%d", scheme_version)
+	//⚠️ don't close database connection as using same connection in whole test suit.
+	// m.Close()
 
 	return nil
 }
-
 
 func RunDownMigrations(db *sql.DB) error {
 	_, b, _, _ := runtime.Caller(0)
@@ -94,7 +90,7 @@ func DropEverythingInDatabase(db *sql.DB) error {
 	migrationDir := filepath.Join("file://" + basePath)
 
 	defer db.Close()
-	
+
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
 		return err
