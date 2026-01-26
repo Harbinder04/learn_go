@@ -13,16 +13,14 @@ import (
 	"go-user-service/config"
 	dbConfig "go-user-service/internal/db"
 	handlers "go-user-service/internal/handler"
-	"go-user-service/internal/jobs"
 	logger "go-user-service/internal/logger"
 	customMiddleware "go-user-service/internal/middleware"
+	"go-user-service/internal/queue"
 	store "go-user-service/internal/store"
-	"go-user-service/internal/workers"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
-
 
 func main() {
 	cfg := config.NewConfig()
@@ -37,25 +35,25 @@ func main() {
 		log.Fatal(err)
 	}
 
+	rd, err := queue.GetRedisClient(cfg.RedisConfig)
+	if err != nil {
+		logger.Info(err.Error())
+		panic(err)
+	}
+
 	r := chi.NewRouter()
 	server := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
-		ReadTimeout: cfg.ServerConfig.ReadTimeout,
-		WriteTimeout: cfg.ServerConfig.WriteTimeout,
-		IdleTimeout: cfg.ServerConfig.IdleTimeout,
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadTimeout:       cfg.ServerConfig.ReadTimeout,
+		WriteTimeout:      cfg.ServerConfig.WriteTimeout,
+		IdleTimeout:       cfg.ServerConfig.IdleTimeout,
 		ReadHeaderTimeout: cfg.ServerConfig.ReadHeaderTimeout,
 	}
 
 	st := store.NewSQLUserStore(db)
 
-	// create a worker porcesses
-	jobQueue := make(chan jobs.Job, 100)
-
-	worker := workers.NewWorker(jobQueue, logger)
-	go worker.Start()
-
-	handler := handlers.NewUserHandler(st, logger, jobQueue)
+	handler := handlers.NewUserHandler(st, logger, rd)
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -102,13 +100,6 @@ func main() {
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("Server shutdown error: " + err.Error())
 		}
-
-		logger.Info("Closing job Queue...")
-		close(jobQueue)
-
-		// done all worker jobs
-		logger.Info("Waithing for workers to done there work")
-		worker.Shutdown()
 
 		logger.Info("Closing database connection")
 		db.Close()

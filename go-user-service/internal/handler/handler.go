@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go-user-service/internal/jobs"
 	models "go-user-service/internal/models"
 	internal "go-user-service/internal/store"
@@ -14,18 +15,19 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/redis/go-redis/v9"
 )
 
 type UserHandler struct {
-	store  internal.UserRepository
-	logger *slog.Logger
-	jobQueue chan jobs.Job
+	store    internal.UserRepository
+	logger   *slog.Logger
+	jobQueue *redis.Client
 }
 
-func NewUserHandler(st internal.UserRepository, lg *slog.Logger, jobQueue chan jobs.Job) *UserHandler {
+func NewUserHandler(st internal.UserRepository, lg *slog.Logger, jobQueue *redis.Client) *UserHandler {
 	return &UserHandler{
-		store:  st,
-		logger: lg,
+		store:    st,
+		logger:   lg,
 		jobQueue: jobQueue,
 	}
 }
@@ -78,7 +80,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dur, exists, err := h.store.UserExists(ctx, newUsr.Email)
-	if dur > 3 * time.Second {
+	if dur > 3*time.Second {
 		h.logger.Info("DB query takes more than 300ms")
 	}
 	if err != nil {
@@ -95,6 +97,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Todo: auto generating id fix it later use uuid.
 	prefix := "abcd"
 	id := string(prefix[rand.IntN(3)]) + strconv.Itoa(rand.IntN(100))
 
@@ -126,15 +129,23 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// jsonData, err := json.Marshal(newUsr.Email)
+	// if err != nil {
+	// 	h.logger.Info(err.Error())
+	// }
+
 	emailJob := jobs.NewemailJob(newUsr.Email)
 
-	select {
-	case h.jobQueue <- emailJob:
-		h.logger.Info("Welcome email queued", "email", newUsr.Email)
-	default:
-		h.logger.Warn("Job queue full, email not sent", "email", newUsr.Email)
-	}
+	// select {
+	// case h.jobQueue <- emailJob:
+	// 	h.logger.Info("Welcome email queued", "email", newUsr.Email)
+	// default:
+	// 	h.logger.Warn("Job queue full, email not sent", "email", newUsr.Email)
+	// }
 
+	result := h.jobQueue.LPush(ctx, emailJob.Type, emailJob.Data)
+
+	fmt.Print(result.Result())
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
