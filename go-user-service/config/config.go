@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -13,6 +14,15 @@ import (
 type Config struct {
 	DatabaseConfig dbConfig
 	ServerConfig   serverConfig
+	RedisConfig    RedisConfig
+}
+
+// for our scenario rdis://:pass@localhost:port
+type RedisConfig struct {
+	Host     string
+	Password string
+	Port     string
+	//  redis[s]://[[username][:password]@][host][:port][/db-number]:
 }
 
 type dbConfig struct {
@@ -33,7 +43,16 @@ type serverConfig struct {
 }
 
 func NewConfig() *Config {
-	godotenv.Load("../../../.env.dev")
+	/* In go when we run 
+	-go run path to main.go 
+	-so if our main is not in the main and we cd into the folder then go start seeing 
+	env from that point so if we are running will full path from root like here, 
+	- `go run cmd/server/main.go`
+	- then .env is at the same level 
+	- but if we cd into `cmd/server` and then run main.go
+	- env path will be "../../.env.dev"
+	*/
+	godotenv.Load("./.env.dev")
 	env := os.Getenv("ENV")
 
 	fmt.Print(env)
@@ -51,9 +70,16 @@ func NewConfig() *Config {
 		panic(err)
 	}
 
+	rd, err := newRedisConfig()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &Config{
 		DatabaseConfig: *db,
 		ServerConfig:   *server,
+		RedisConfig:    *rd,
 	}
 }
 
@@ -122,5 +148,28 @@ func newServerConfig() (*serverConfig, error) {
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       30 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
+	}, nil
+}
+
+func newRedisConfig() (*RedisConfig, error) {
+	redisPort := os.Getenv("REDIS_PORT")
+	if redisPort == "" {
+		log.Fatal("redis port not provided")
+	}
+
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisPort == "" {
+		log.Fatal("redis host not provided")
+	}
+
+	redisPassword := os.Getenv("REDIS_PASSWORD")
+	if redisPort == "" {
+		log.Fatal("redis password not provided")
+	}
+
+	return &RedisConfig{
+		Host:     redisHost,
+		Port:     redisPort,
+		Password: redisPassword,
 	}, nil
 }
