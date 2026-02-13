@@ -3,11 +3,12 @@ package queue
 import (
 	"context"
 	"go-user-service/config"
+	"log/slog"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func GetRedisClient( cfg config.RedisConfig) (*redis.Client, error) {
+func GetRedisClient( cfg config.RedisConfig, logger *slog.Logger) (*redis.Client, error) {
 	ctx := context.Background()
 
 	rdb  := redis.NewClient(&redis.Options{
@@ -15,15 +16,10 @@ func GetRedisClient( cfg config.RedisConfig) (*redis.Client, error) {
 		Password: cfg.Password,
 	})
 
-	err := rdb.Set(ctx, "key", "Value", 0).Err()
-	if err != nil {
-		panic(err)
+	pong, _ := rdb.Ping(ctx).Result()
+    if pong != "" {
+		logger.Info("Redis is up")
 	}
-
-	_, err = rdb.Get(ctx, "key").Result()
-    if err != nil {
-        panic(err)
-    }
 	
     return rdb, nil
 }

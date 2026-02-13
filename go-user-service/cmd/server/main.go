@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,7 +36,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rd, err := queue.GetRedisClient(cfg.RedisConfig)
+	rd, err := queue.GetRedisClient(cfg.RedisConfig, logger)
 	if err != nil {
 		logger.Info(err.Error())
 		panic(err)
@@ -58,7 +59,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 
-	// attaches logger to the request
+	// attaches logger to the request -> using in middleware
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := context.WithValue(r.Context(), "logger", logger)
@@ -93,10 +94,9 @@ func main() {
 		<-sigChan
 		logger.Info("Shutdown signal received")
 
+		logger.Warn("Waiting for ongoing requests")
 		shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownRelease()
-		logger.Warn("Waiting for ongoing requests")
-
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("Server shutdown error: " + err.Error())
 		}

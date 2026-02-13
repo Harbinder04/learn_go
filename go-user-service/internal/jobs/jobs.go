@@ -1,13 +1,15 @@
 package jobs
 
 type Job struct {
-	Type string	`json:"type"`
-	Data any `json:"data"`
+	Id  string `json:"id"`
+	Type string `json:"type"`
+	Data string `json:"data"`
 }
 
-func NewemailJob(email string) Job {
+func NewemailJob(id, data string) Job {
 	return Job{
+		Id: id,
 		Type: "Welcome Email",
-		Data: email,
+		Data: data,
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -129,12 +130,9 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// jsonData, err := json.Marshal(newUsr.Email)
-	// if err != nil {
-	// 	h.logger.Info(err.Error())
-	// }
+	newJobId := uuid.NewString()
 
-	emailJob := jobs.NewemailJob(newUsr.Email)
+	emailJob := jobs.NewemailJob(newJobId, newUsr.Email)
 
 	// select {
 	// case h.jobQueue <- emailJob:
@@ -143,9 +141,16 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	// 	h.logger.Warn("Job queue full, email not sent", "email", newUsr.Email)
 	// }
 
-	result := h.jobQueue.LPush(ctx, emailJob.Type, emailJob.Data)
+	jsonData, err := json.Marshal(emailJob)
+	if err != nil {
+		h.logger.Warn("Not able to marshal data")
+	}
 
-	fmt.Print(result.Result())
+	result := h.jobQueue.LPush(ctx, emailJob.Type, jsonData)
+
+	fmt.Println(result.Result())
+	fmt.Println(result.FullName())
+	fmt.Println(result.Err())
 
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
