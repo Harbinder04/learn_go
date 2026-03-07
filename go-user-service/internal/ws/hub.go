@@ -5,18 +5,18 @@ import (
 )
 
 type Hub struct {
-	Client       map[*websocket.Conn]bool
+	Client       map[*Client]bool
 	Broadcast    chan []byte
-	AddClient    chan *websocket.Conn
-	removeClient chan *websocket.Conn
+	AddClient    chan *Client
+	removeClient chan *Client
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		Client:       make(map[*websocket.Conn]bool),
+		Client:       make(map[*Client]bool),
 		Broadcast:    make(chan []byte),
-		AddClient:    make(chan *websocket.Conn),
-		removeClient: make(chan *websocket.Conn),
+		AddClient:    make(chan *Client),
+		removeClient: make(chan *Client),
 	}
 }
 
@@ -29,7 +29,17 @@ func (h *Hub) Run() {
 			delete(h.Client, client)
 		case msg := <-h.Broadcast:
 			for client := range h.Client {
-				client.WriteMessage(websocket.TextMessage, msg)
+				select {
+				case client.send <- msg:
+					go func() {
+						for msg := range client.send {
+							client.conn.WriteMessage(websocket.TextMessage, msg)
+						}
+					}()
+				default:
+					close(client.send)
+					delete(h.Client, client)
+				}
 			}
 		}
 	}
