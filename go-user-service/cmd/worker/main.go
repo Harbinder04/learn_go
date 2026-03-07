@@ -36,12 +36,13 @@ func main() {
 		panic(err)
 	}
 
-	shutSig := make(chan struct{})
+	// shutSig := make(chan struct{})
 	// to get a buffer time to requeue the currently running task
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Ask : Do we really need to pass shutSig as we can listen on ctx also??
+	// no need for sutSig
 	go processJobs(rd, logger, ctx)
 
 	// Wait for shutdown signal
@@ -57,10 +58,10 @@ func main() {
 		cancel()
 		time.Sleep(3 * time.Second)
 
-		close(shutSig)
+		// close(shutSig)
 	}()
 
-	<-shutSig
+	// <-shutSig
 	logger.Info("Worker shutdown complete")
 }
 
@@ -88,6 +89,7 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 					return
 				}
 				if err == redis.Nil {
+					// No jobs available
 					continue
 				}
 				logger.Error(fmt.Sprintf("Error popping job: %v", err))
@@ -95,6 +97,7 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 			}
 
 			if len(jobsData) < 2 {
+				// 1 is the key :empty
 				continue
 			}
 
@@ -136,7 +139,7 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 				//Ask: what wil happen here if the ctx is canceled mid way??
 				rd.Del(ctx, processingKey)
 
-				requeueCtx, cancel := context.WithTimeout(context.Background(), 5 * time.Second)
+				requeueCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
 				requeueJob(requeueCtx, rd, queueName, job, logger)

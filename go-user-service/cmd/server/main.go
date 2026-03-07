@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +17,7 @@ import (
 	customMiddleware "go-user-service/internal/middleware"
 	"go-user-service/internal/queue"
 	store "go-user-service/internal/store"
+	"go-user-service/internal/ws"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -53,8 +53,11 @@ func main() {
 	}
 
 	st := store.NewSQLUserStore(db)
+	//todo:remove
+	hub := ws.NewHub()
+	go hub.Run()
 
-	handler := handlers.NewUserHandler(st, logger, rd)
+	handler := handlers.NewUserHandler(hub, st, logger, rd)
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -75,6 +78,10 @@ func main() {
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"msg": "Pong"})
+	})
+
+	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		ws.WsServer(hub, w, r)
 	})
 
 	// start the server

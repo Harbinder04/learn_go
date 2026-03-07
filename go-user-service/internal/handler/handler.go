@@ -8,6 +8,7 @@ import (
 	"go-user-service/internal/jobs"
 	models "go-user-service/internal/models"
 	internal "go-user-service/internal/store"
+	"go-user-service/internal/ws"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
@@ -23,13 +24,15 @@ type UserHandler struct {
 	store    internal.UserRepository
 	logger   *slog.Logger
 	jobQueue *redis.Client
+	hub      *ws.Hub
 }
 
-func NewUserHandler(st internal.UserRepository, lg *slog.Logger, jobQueue *redis.Client) *UserHandler {
+func NewUserHandler(hub *ws.Hub, st internal.UserRepository, lg *slog.Logger, jobQueue *redis.Client) *UserHandler {
 	return &UserHandler{
 		store:    st,
 		logger:   lg,
 		jobQueue: jobQueue,
+		hub:      hub,
 	}
 }
 
@@ -157,6 +160,8 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]string{"id": resId, "request_id": reqId})
 	h.logger.Info("user created", "id", id)
+	//todo: remove this
+	h.hub.Broadcast <- []byte("user_created" + id)
 
 }
 
