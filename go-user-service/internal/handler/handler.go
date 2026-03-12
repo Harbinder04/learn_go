@@ -51,8 +51,6 @@ func CreateJsonResponse(w http.ResponseWriter, statusCode int, reqId string, use
 }
 
 func CheckIsValid(name string, email string) error {
-	// Todo: remove this delay later
-	// time.Sleep(5 * time.Second)
 	if len(name) < 2 {
 		return errors.New("Name must be greater than 2 characters")
 	}
@@ -160,9 +158,6 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(map[string]string{"id": resId, "request_id": reqId})
 	h.logger.Info("user created", "id", id)
-	//todo: remove this
-	h.hub.Broadcast <- []byte("user_created" + id)
-
 }
 
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
