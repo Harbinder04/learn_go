@@ -12,6 +12,7 @@ import (
 
 	"go-user-service/config"
 	dbConfig "go-user-service/internal/db"
+	eventsubscriber "go-user-service/internal/eventSubscriber"
 	handlers "go-user-service/internal/handler"
 	logger "go-user-service/internal/logger"
 	customMiddleware "go-user-service/internal/middleware"
@@ -36,7 +37,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	rd, err := queue.GetRedisClient(cfg.RedisConfig, logger)
+	rdb, err := queue.GetRedisClient(cfg.RedisConfig, logger)
 	if err != nil {
 		logger.Info(err.Error())
 		panic(err)
@@ -52,12 +53,16 @@ func main() {
 		ReadHeaderTimeout: cfg.ServerConfig.ReadHeaderTimeout,
 	}
 
+	// global context || context to cancel redis pub/sub
+	ctx, cancel := context.WithCancel(context.Background())
 	st := store.NewSQLUserStore(db)
 	//todo:remove
 	hub := ws.NewHub()
 	go hub.Run()
+	// redis event subscriber
+	go eventsubscriber.Listen(ctx, hub, rdb)
 
-	handler := handlers.NewUserHandler(hub, st, logger, rd)
+	handler := handlers.NewUserHandler(hub, st, logger, rdb)
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -100,6 +105,9 @@ func main() {
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 		<-sigChan
 		logger.Info("Shutdown signal received")
+
+		//global context
+		cancel()
 
 		logger.Warn("Waiting for ongoing requests")
 		shutdownCtx, shutdownRelease := context.WithTimeout(context.Background(), 10*time.Second)

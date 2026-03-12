@@ -26,6 +26,11 @@ const (
 	processingTTL       = 5 * time.Minute
 )
 
+type Event struct {
+	Type string	`json:"type"`
+	Data interface{}	`json:"data"`
+}
+
 func main() {
 	cfg := config.NewConfig()
 
@@ -90,6 +95,7 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 				}
 				if err == redis.Nil {
 					// No jobs available
+					logger.Error("welcome email key does not exit")
 					continue
 				}
 				logger.Error(fmt.Sprintf("Error popping job: %v", err))
@@ -97,7 +103,7 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 			}
 
 			if len(jobsData) < 2 {
-				// 1 is the key :empty
+				// length 1 is the key and empty queue
 				continue
 			}
 
@@ -137,6 +143,8 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 				logger.Error("Failed to process job", "jobID", job.Id, "error", err)
 
 				//Ask: what wil happen here if the ctx is canceled mid way??
+				// mar 11: not sure, but we are providing time to complete the function on cancellation of context the function 
+				// isn't immediately stoped. 
 				rd.Del(ctx, processingKey)
 
 				requeueCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -147,11 +155,18 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 			}
 
 			if err := rd.Set(ctx, processedKey, "1", jobTTL).Err(); err != nil {
-				logger.Error("Failed to mark job as processed", "jobId", job.Id, "error", err)
+				logger.Error("failed to mark job as processed", "jobId", job.Id, "error", err)
 			}
 
 			rd.Del(ctx, processingKey)
-
+			// publish event; 
+			event, err:= json.Marshal(Event{
+				Type: "Welcome Email Send",
+				Data: map[string]string{
+					"user_id": job.Id,
+				},
+			}); if
+			rd.Publish(ctx, "myconfirmationChannel", event)
 			logger.Info("successfully processed job", "jobId", job.Id)
 		}
 	}
