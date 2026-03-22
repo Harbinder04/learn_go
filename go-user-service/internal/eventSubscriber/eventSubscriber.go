@@ -22,7 +22,7 @@ func Listen(ctx context.Context, hub *ws.Hub, rdb *redis.Client) {
 
 		pubsub := rdb.Subscribe(ctx, "myconfirmationChannel")
 
-		// Receive is a kind of handshake
+		// First Receive is a kind of handshake message
 		if _, err := pubsub.Receive(ctx); err != nil {
 			pubsub.Close()
 			time.Sleep(2 * time.Second)
