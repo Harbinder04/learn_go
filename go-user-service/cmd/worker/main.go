@@ -27,8 +27,8 @@ const (
 )
 
 type Event struct {
-	Type string	`json:"type"`
-	Data interface{}	`json:"data"`
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 
 func main() {
@@ -41,13 +41,13 @@ func main() {
 		panic(err)
 	}
 
-	// shutSig := make(chan struct{})
+	shutSig := make(chan struct{})
 	// to get a buffer time to requeue the currently running task
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Ask : Do we really need to pass shutSig as we can listen on ctx also??
-	// no need for sutSig
+	// Ans: no need for sutSig
 	go processJobs(rd, logger, ctx)
 
 	// Wait for shutdown signal
@@ -63,10 +63,10 @@ func main() {
 		cancel()
 		time.Sleep(3 * time.Second)
 
-		// close(shutSig)
+		close(shutSig)
 	}()
 
-	// <-shutSig
+	<-shutSig
 	logger.Info("Worker shutdown complete")
 }
 
@@ -143,8 +143,8 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 				logger.Error("Failed to process job", "jobID", job.Id, "error", err)
 
 				//Ask: what wil happen here if the ctx is canceled mid way??
-				// mar 11: not sure, but we are providing time to complete the function on cancellation of context the function 
-				// isn't immediately stoped. 
+				// mar 11: not sure, but we are providing time to complete the function on cancellation of context the function
+				// isn't immediately stoped.
 				rd.Del(ctx, processingKey)
 
 				requeueCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -159,13 +159,16 @@ func processJobs(rd *redis.Client, logger *slog.Logger, ctx context.Context) {
 			}
 
 			rd.Del(ctx, processingKey)
-			// publish event; 
-			event, err:= json.Marshal(Event{
+			// publish event;
+			event, err := json.Marshal(Event{
 				Type: "Welcome Email Send",
-				Data: map[string]string{
-					"user_id": job.Id,
-				},
-			}); if
+				Data: map[string]string{"user_id": job.Id},
+			})
+			if err != nil {
+				logger.Error("unable to marshal the email success notification")
+			}
+
+			// Ask: what if there is no publisher with this key??
 			rd.Publish(ctx, "myconfirmationChannel", event)
 			logger.Info("successfully processed job", "jobId", job.Id)
 		}
