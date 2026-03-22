@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"go-user-service/internal/ws"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -14,22 +15,37 @@ type Event struct {
 }
 
 func Listen(ctx context.Context, hub *ws.Hub, rdb *redis.Client) {
-	//todo: remove empty context and use actuall context
-	pubsub := rdb.Subscribe(ctx, "myconfirmationChannel")
+	for {
+		if ctx.Err() != nil {
+			return
+		}
 
-	defer pubsub.Close()
-	// verifying subscription is created or not
-	_, err := pubsub.Receive(ctx)
-	if err != nil {
-		panic(err)
+		pubsub := rdb.Subscribe(ctx, "myconfirmationChannel")
+
+		// Receive is a kind of handshake
+		if _, err := pubsub.Receive(ctx); err != nil {
+			pubsub.Close()
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		eventLoop(ctx, pubsub, hub)
+
+		pubsub.Close()
 	}
+}
 
+func eventLoop(ctx context.Context, pubsub *redis.PubSub, hub *ws.Hub) {
 	ch := pubsub.Channel()
 
 	for {
-		for msg := range ch {
-			var e Event
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
 
+			var e Event
 			if err := json.Unmarshal([]byte(msg.Payload), &e); err != nil {
 				continue
 			}
@@ -44,6 +60,9 @@ func Listen(ctx context.Context, hub *ws.Hub, rdb *redis.Client) {
 			case <-ctx.Done():
 				return
 			}
+
+		case <-ctx.Done():
+			return
 		}
 	}
 }
