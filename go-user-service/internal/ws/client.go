@@ -24,6 +24,15 @@ func NewClient(conn *websocket.Conn) *Client {
 	}
 }
 
+func (c *Client) writePump() {
+	defer c.conn.Close()
+	for msg := range c.send {
+		if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+			break // connection dead
+		}
+	}
+}
+
 func WsServer(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -32,6 +41,7 @@ func WsServer(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 	client := NewClient(conn)
 	hub.AddClient <- client
+	go client.writePump()
 
 	//Todo: replace with real logger later
 	log.Println("Client successfully added")

@@ -24,7 +24,7 @@ func (h *Hub) Run() {
 		case client := <-h.removeClient:
 			if _, ok := h.Client[client]; ok {
 				delete(h.Client, client)
-				close(client.send)
+				close(client.send) // signaling client.writePump to close chan
 			}
 		case msg := <-h.Broadcast:
 			for client := range h.Client {
@@ -36,6 +36,8 @@ func (h *Hub) Run() {
 					// 		client.conn.WriteMessage(websocket.TextMessage, msg)
 					// 	}
 					// }()
+
+				// we are choosing to drop the client for now
 				default:
 					close(client.send)
 					delete(h.Client, client)
